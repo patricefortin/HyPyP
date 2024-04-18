@@ -7,8 +7,8 @@ PSD, intra- and inter-brain measures functions
 | Option | Description |
 | ------ | ----------- |
 | title           | analyses.py |
-| authors         | Phoebe Chen, Florence Brun, Guillaume Dumas |
-| date            | 2020-03-18 |
+| authors         | Phoebe Chen, Florence Brun, Guillaume Dumas, Ryssa Moffat |
+| date            | 2024-04-18 |
 """
 
 import numpy as np
@@ -21,6 +21,7 @@ from collections import namedtuple
 from typing import Union
 from astropy.stats import circmean
 import matplotlib.pyplot as plt
+import pywt
 
 plt.ion()
 
@@ -851,3 +852,80 @@ def xwt(sig1: mne.Epochs, sig2: mne.Epochs,
         data = 'Please specify a valid mode: power, phase, xwt, or wtc.'
         print(data)
     return data
+
+def xwt_coherence_morl(x1, x2, fs, nNotes=12, detrend=True, normalize=True):
+    """
+    Calculates the cross wavelet transform coherence between two time series using the Morlet wavelet.
+
+    Arguments:
+        x1 : array
+            Time series data of the first signal.
+        x2 : array
+            Time series data of the second signal.
+        fs : int
+            Sampling frequency of the time series data.
+        nNotes : int, optional
+            Number of notes per octave for scale decomposition, defaults to 12.
+        detrend : bool, optional
+            If True, linearly detrends the time series data, defaults to True.
+        normalize : bool, optional
+            If True, normalizes the time series data by its standard deviation, defaults to True.
+
+    Note:
+        This function uses PyWavelets for performing continuous wavelet transforms
+        and scipy.ndimage for filtering operations.
+
+    Returns:
+        WCT : array
+            Wavelet coherence transform values.
+        times : array
+            Time points corresponding to the time series data.
+        frequencies : array
+            Frequencies corresponding to the wavelet scales.
+        coif : array
+            Cone of influence in frequency, reflecting areas in the time-frequency space
+            affected by edge artifacts.
+    """
+    # Assertions and initial computations
+    N1 = len(x1)
+    N2 = len(x2)
+    assert (N1 == N2), "error: arrays not same size"
+   
+    N = N1
+    dt = 1.0 / fs
+    times = np.arange(N) * dt
+ 
+    # Data preprocessing: detrend and normalize
+    if detrend:
+        x1 = signal.detrend(x1, type='linear')
+        x2 = signal.detrend(x2, type='linear')
+    if normalize:
+        stddev1 = x1.std()
+        x1 = x1 / stddev1
+        stddev2 = x2.std()
+        x2 = x2 / stddev2
+ 
+    # Wavelet transform parameters
+    nOctaves = int(np.log2(2 * np.floor(N / 2.0)))
+    scales = 2 ** np.arange(1, nOctaves, 1.0 / nNotes)
+    coef1, freqs1 = pywt.cwt(x1, scales, 'cmor1.5-1.0')
+    coef2, freqs2 = pywt.cwt(x2, scales, 'cmor1.5-1.0')
+    frequencies = pywt.scale2frequency('cmor1.5-1.0', scales) / dt
+   
+    # Compute cross wavelet transform and coherence
+    coef12 = coef1 * np.conj(coef2)
+    scaleMatrix = np.ones([1, N]) * scales[:, None]
+    S1 = scipy.ndimage.gaussian_filter((np.abs(coef1) ** 2 / scaleMatrix), sigma=5)
+    S2 = scipy.ndimage.gaussian_filter((np.abs(coef2) ** 2 / scaleMatrix), sigma=5)
+    S12 = scipy.ndimage.gaussian_filter((np.abs(coef12 / scaleMatrix)), sigma=5)
+    WCT = S12 ** 2 / (S1 * S2)
+
+    # Cone of influence calculations
+    f0 = 2 * np.pi
+    cmor_coi = 1.0 / np.sqrt(2)
+    cmor_flambda = 4 * np.pi / (f0 + np.sqrt(2 + f0**2))
+    coi = (N / 2 - np.abs(np.arange(0, N) - (N - 1) / 2))
+    coi = cmor_flambda * cmor_coi * dt * coi
+    coif = 1.0 / coi
+ 
+    return WCT, times, frequencies, coif
