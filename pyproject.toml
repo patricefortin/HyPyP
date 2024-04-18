@@ -40,7 +40,7 @@ mistune = ">=2.0.4"
 future = ">=0.18.3"
 certifi = ">=2022.12.07"
 importlib-resources = "^6.0.0"
-pyqt5 = "^5.15.10"
+pyqt5 = "^5.1"
 pywavelets = "^1.6.0"
 
 [tool.poetry.group.dev.dependencies]
