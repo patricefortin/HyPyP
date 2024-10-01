@@ -61,3 +61,4 @@ You can now use ```jupyter notebook``` or ```ipython```!
 ⚠️ If you need to install a new dependency (not recommended), you have to use `poetry add THE_NAME_OF_THE_LIBRARY` instead of your usual package manager.
 
 
+
